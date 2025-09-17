@@ -1,0 +1,5 @@
+{
+  "name": "Trình chỉnh sửa ảnh Gemini AI",
+  "description": "Một công cụ chỉnh sửa ảnh trực tuyến được hỗ trợ bởi Gemini. Dễ dàng khôi phục ảnh cũ, tô màu ảnh đen trắng và áp dụng các chỉnh sửa tùy chỉnh với lời nhắc văn bản đơn giản.",
+  "requestFramePermissions": []
+}
