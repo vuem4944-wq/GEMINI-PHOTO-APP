@@ -33,15 +33,41 @@ const getPromptForMode = (mode: EditMode, quality: string, customPrompt?: string
     return `${basePrompt} ${qualityPrompt} ${finalInstruction}`;
 };
 
+export const checkApiKey = async (apiKey: string): Promise<boolean> => {
+    if (!apiKey.trim()) {
+        return false;
+    }
+    try {
+        const ai = new GoogleGenAI({ apiKey });
+        // A lightweight, fast call to verify the key.
+        await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: 'hi',
+            config: {
+                thinkingConfig: { thinkingBudget: 0 } // Disable thinking for speed and low cost
+            }
+        });
+        return true; // Success
+    } catch (e) {
+        console.error("API Key check failed:", e);
+        return false; // Failure (invalid key, network error, etc.)
+    }
+};
+
+
 export const editImage = async (
+    apiKey: string,
     base64ImageDatas: string[],
     mimeTypes: string[],
     mode: EditMode,
     quality: string,
     customPrompt?: string,
 ): Promise<string> => {
+    if (!apiKey) {
+        throw new Error("API Key is missing.");
+    }
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI({ apiKey });
         const prompt = getPromptForMode(mode, quality, customPrompt);
 
         const imageParts = base64ImageDatas.map((data, index) => ({

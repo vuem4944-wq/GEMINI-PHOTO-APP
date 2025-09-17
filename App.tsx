@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { EditMode } from './types';
-import { editImage } from './services/geminiService';
+import { editImage, checkApiKey } from './services/geminiService';
 
 const MAX_FILES = 5;
 
@@ -8,6 +8,52 @@ type UploadedFile = {
   file: File;
   preview: string;
 };
+
+// --- Hướng dẫn Modal Component ---
+const ApiKeyGuideModal = ({ onClose }: { onClose: () => void }) => (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div className="bg-gray-800 rounded-xl shadow-lg max-w-2xl w-full border border-gray-700 animate-fade-in-up">
+            <div className="p-6 border-b border-gray-700">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M15,12a1,1,0,0,0-1-1H10a1,1,0,0,0,0,2h4A1,1,0,0,0,15,12Zm-1-4H10a3,3,0,0,0-3,3v2a3,3,0,0,0,3,3h4a3,3,0,0,0,3-3V11A3,3,0,0,0,14,8Zm5,2.18V11a5,5,0,0,1-5,5H10a5,5,0,0,1-5-5V11A5,5,0,0,1,10,6h4a5,5,0,0,1,2.83,1H19a1,1,0,0,1,0,2Z"/></svg>
+                    Hướng dẫn lấy Gemini API Key
+                </h2>
+                <p className="text-sm text-gray-400 mt-1">Làm theo các bước sau để có API Key và sử dụng ứng dụng.</p>
+            </div>
+            <div className="p-6 space-y-4 text-gray-300">
+                <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">1</div>
+                    <p>Truy cập vào trang <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-400 font-medium hover:underline">Google AI Studio</a> và đăng nhập bằng tài khoản Google của bạn.</p>
+                </div>
+                <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">2</div>
+                    <p>Nhấn vào nút <span className="font-semibold bg-gray-700 px-1.5 py-0.5 rounded">"Get API key"</span> ở góc trên bên trái.</p>
+                </div>
+                 <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">3</div>
+                    <p>Trong menu hiện ra, chọn <span className="font-semibold bg-gray-700 px-1.5 py-0.5 rounded">"Create API key in new project"</span>.</p>
+                </div>
+                 <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">4</div>
+                    <p>API Key của bạn sẽ hiện ra. Nhấn vào biểu tượng sao chép để copy key.</p>
+                </div>
+                 <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">5</div>
+                    <p>Quay lại trang này và dán API Key vừa sao chép vào ô "Gemini API Key".</p>
+                </div>
+            </div>
+             <div className="p-6 bg-gray-900/50 rounded-b-xl flex justify-end">
+                <button
+                    onClick={onClose}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
+                >
+                    Đã hiểu
+                </button>
+            </div>
+        </div>
+    </div>
+);
+
 
 const ModeButton = ({ mode, currentMode, setMode, children }: { mode: EditMode, currentMode: EditMode, setMode: (mode: EditMode) => void, children: React.ReactNode }) => (
   <button
@@ -27,8 +73,9 @@ const QualityButton = ({ quality, currentQuality, setQuality, children }: { qual
     </button>
 );
 
-
 function App() {
+  const [apiKey, setApiKey] = useState<string>('');
+  const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [editedImages, setEditedImages] = useState<string[]>([]);
   const [editMode, setEditMode] = useState<EditMode>(EditMode.RESTORE);
@@ -36,6 +83,43 @@ function App() {
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showApiKeyGuide, setShowApiKeyGuide] = useState(false);
+
+  useEffect(() => {
+    const storedApiKey = localStorage.getItem('geminiApiKey');
+    if (storedApiKey) {
+      setApiKey(storedApiKey);
+    }
+    
+    // Hiển thị hướng dẫn nếu người dùng chưa từng thấy
+    const hasSeenGuide = localStorage.getItem('hasSeenApiKeyGuide');
+    if (hasSeenGuide !== 'true') {
+        setShowApiKeyGuide(true);
+    }
+  }, []);
+  
+  const handleCloseGuide = () => {
+    setShowApiKeyGuide(false);
+    localStorage.setItem('hasSeenApiKeyGuide', 'true');
+  };
+
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newApiKey = e.target.value;
+    setApiKey(newApiKey);
+    localStorage.setItem('geminiApiKey', newApiKey);
+    setApiKeyStatus('idle');
+  }
+  
+  const handleCheckApiKey = async () => {
+    if (!apiKey.trim()) {
+      setApiKeyStatus('invalid');
+      return;
+    }
+    setError(null); // Clear main error display
+    setApiKeyStatus('checking');
+    const isValid = await checkApiKey(apiKey);
+    setApiKeyStatus(isValid ? 'valid' : 'invalid');
+  };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -71,6 +155,10 @@ function App() {
   };
 
   const handleEdit = async () => {
+    if (!apiKey.trim()) {
+      setError('Vui lòng nhập Gemini API Key của bạn để tiếp tục.');
+      return;
+    }
     if (uploadedFiles.length === 0) {
       setError('Vui lòng tải lên ít nhất một ảnh.');
       return;
@@ -89,197 +177,273 @@ function App() {
     setEditedImages([]);
 
     try {
-      const filesToProcess = editMode === EditMode.COUPLE_PHOTO
-        ? uploadedFiles
-        : [uploadedFiles[0]];
-
-      const base64Strings = await Promise.all(
-          filesToProcess.map(uf => fileToBase64(uf.file))
-      );
-      const mimeTypes = filesToProcess.map(uf => uf.file.type);
-
-
-      // Create 2 sequential requests to avoid rate limiting.
-      const results: string[] = [];
-      for (let i = 0; i < 2; i++) {
-        const result = await editImage(
-            base64Strings,
-            mimeTypes,
-            editMode, 
-            outputQuality, 
-            customPrompt
+      if (editMode === EditMode.COUPLE_PHOTO) {
+        // Xử lý chế độ chụp ảnh chung như một trường hợp đặc biệt
+        const base64Strings = await Promise.all(
+          uploadedFiles.map(uf => fileToBase64(uf.file))
         );
-        results.push(result);
-        // Update state progressively to show images as they are generated
-        setEditedImages([...results]); 
+        const mimeTypes = uploadedFiles.map(uf => uf.file.type);
+        const result = await editImage(
+          apiKey,
+          base64Strings,
+          mimeTypes,
+          editMode,
+          outputQuality,
+          customPrompt
+        );
+        setEditedImages([result]);
+      } else {
+        // Xử lý tất cả các chế độ khác bằng cách lặp qua từng ảnh
+        const results = await Promise.all(
+          uploadedFiles.map(async (uf) => {
+            const base64String = await fileToBase64(uf.file);
+            const mimeType = uf.file.type;
+            return editImage(
+              apiKey,
+              [base64String],
+              [mimeType],
+              editMode,
+              outputQuality,
+              customPrompt
+            );
+          })
+        );
+        setEditedImages(results);
       }
-
     } catch (e: any) {
       setError(`Đã xảy ra lỗi: ${e.message}`);
-      console.error(e);
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
   };
-
-
-  const modeOptions = {
-      [EditMode.RESTORE]: 'Phục chế',
-      [EditMode.SHARPEN]: 'Làm nét',
-      [EditMode.ID_PHOTO]: 'Ảnh thẻ',
-      [EditMode.REMOVE_BACKGROUND]: 'Xóa nền',
-      [EditMode.COUPLE_PHOTO]: 'Chụp ảnh chung',
-      [EditMode.CUSTOM]: 'Tùy chỉnh',
-  }
   
-  const modeIcons: { [key in EditMode]: React.ReactNode } = {
-    [EditMode.RESTORE]: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>,
-    [EditMode.SHARPEN]: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>,
-    [EditMode.ID_PHOTO]: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>,
-    [EditMode.REMOVE_BACKGROUND]: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 0L19 19m-9.879-9.879l-2.879 2.879M12 12L9.121 9.121" /></svg>,
-    [EditMode.COUPLE_PHOTO]: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zm-1.5 5.5a3 3 0 00-3 0V12a2 2 0 00-2 2v1a2 2 0 002 2h3.5a2 2 0 002-2v-1a2 2 0 00-2-2v-.5zM17 6a3 3 0 11-6 0 3 3 0 016 0zm-1.5 5.5a3 3 0 00-3 0V12a2 2 0 00-2 2v1a2 2 0 002 2H16a2 2 0 002-2v-1a2 2 0 00-2-2v-.5z" /></svg>,
-    [EditMode.CUSTOM]: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>,
-  };
+  const renderResults = () => {
+    if (isLoading) {
+        return (
+            <div className="text-center">
+                <svg className="animate-spin h-10 w-10 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <p className="mt-2 text-gray-400">AI đang xử lý, vui lòng chờ...</p>
+            </div>
+        );
+    }
+
+    if (editedImages.length === 0) {
+        return (
+            <div className="text-center text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 mx-auto mb-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/></svg>
+                <p>Kết quả sẽ được hiển thị ở đây</p>
+            </div>
+        );
+    }
+    
+    // Đặc biệt xử lý cho chế độ Couple Photo
+    if (editMode === EditMode.COUPLE_PHOTO) {
+        return (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                <div>
+                    <h3 className="font-semibold text-center mb-2">Gốc</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                         {uploadedFiles.map((uf, index) => (
+                            <img key={index} src={uf.preview} alt={`original ${index}`} className="w-full h-auto object-contain rounded-lg" />
+                        ))}
+                    </div>
+                </div>
+                <div>
+                    <h3 className="font-semibold text-center mb-2">Kết quả</h3>
+                    <div className="relative group">
+                        <img src={`data:image/png;base64,${editedImages[0]}`} alt="edited result couple" className="w-full h-auto object-contain rounded-lg" />
+                        <a href={`data:image/png;base64,${editedImages[0]}`} download="couple-photo.png" className="absolute bottom-2 right-2 bg-blue-600 text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12,16a1,1,0,0,1-1-1V5.41l-1.29,1.3a1,1,0,0,1-1.42-1.42l3-3a1,1,0,0,1,1.42,0l3,3a1,1,0,0,1-1.42,1.42L13,5.41V15A1,1,0,0,1,12,16Zm8,1H4a3,3,0,0,0-3,3v1a1,1,0,0,0,1,1H22a1,1,0,0,0,1-1v-1A3,3,0,0,0,20,17Z"/></svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // Xử lý cho các chế độ khác
+    return (
+        <div className="space-y-6 w-full max-h-[70vh] overflow-y-auto pr-2">
+            {uploadedFiles.map((uf, index) => (
+                <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-gray-700 pb-4 last:border-b-0">
+                    <div>
+                        <h3 className="font-semibold text-center mb-2">Gốc</h3>
+                        <img src={uf.preview} alt={`original ${index}`} className="w-full h-auto object-contain rounded-lg" />
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-center mb-2">Kết quả</h3>
+                        {editedImages[index] && (
+                            <div className="relative group">
+                                <img src={`data:image/png;base64,${editedImages[index]}`} alt={`edited result ${index}`} className="w-full h-auto object-contain rounded-lg" />
+                                <a href={`data:image/png;base64,${editedImages[index]}`} download={`edited-image-${index}.png`} className="absolute bottom-2 right-2 bg-blue-600 text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-all">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12,16a1,1,0,0,1-1-1V5.41l-1.29,1.3a1,1,0,0,1-1.42-1.42l3-3a1,1,0,0,1,1.42,0l3,3a1,1,0,0,1-1.42,1.42L13,5.41V15A1,1,0,0,1,12,16Zm8,1H4a3,3,0,0,0-3,3v1a1,1,0,0,0,1,1H22a1,1,0,0,0,1-1v-1A3,3,0,0,0,20,17Z"/></svg>
+                                </a>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
 
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
-        <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-blue-400 flex items-center justify-center gap-3">
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M5 2a1 1 0 00-1 1v1H3a1 1 0 00-1 1v12a1 1 0 001 1h14a1 1 0 001-1V5a1 1 0 00-1-1h-1V3a1 1 0 00-1-1H5zM4 6h12v10H4V6zm2-2h8v1H6V4z" clipRule="evenodd" />
-                <path d="M8.5 12a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
-                <path fillRule="evenodd" d="M10 6a4 4 0 100 8 4 4 0 000-8zM7 10a3 3 0 116 0 3 3 0 01-6 0z" clipRule="evenodd" />
-            </svg>
-            Trình chỉnh sửa ảnh Gemini AI
+    <>
+      {showApiKeyGuide && <ApiKeyGuideModal onClose={handleCloseGuide} />}
+      <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+        <header className="bg-gray-800/50 backdrop-blur-sm p-4 border-b border-gray-700 flex justify-center items-center sticky top-0 z-10">
+          <h1 className="text-xl font-bold flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/><path d="M12,6a6,6,0,1,0,6,6A6,6,0,0,0,12,6Zm0,10a4,4,0,1,1,4-4A4,4,0,0,1,12,16Z"/></svg>
+              Trình chỉnh sửa ảnh Gemini
           </h1>
-          <p className="text-gray-400 mt-2">Nâng cấp ảnh của bạn với sức mạnh của trí tuệ nhân tạo.</p>
         </header>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-gray-800 p-6 rounded-xl space-y-6">
-            
+        
+        <main className="flex-grow flex flex-col lg:flex-row p-4 gap-4">
+          {/* Control Panel */}
+          <aside className="w-full lg:w-1/4 lg:max-w-sm bg-gray-800 p-5 rounded-xl flex flex-col gap-6 self-start">
             <div>
-              <h2 className="text-lg font-semibold mb-3 border-l-4 border-blue-400 pl-3 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                1. Tải ảnh lên
-              </h2>
-              <label htmlFor="image-upload" className="block w-full cursor-pointer border-2 border-dashed border-gray-600 hover:border-blue-500 rounded-lg p-8 text-center transition-colors">
-                <input id="image-upload" type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" disabled={uploadedFiles.length >= MAX_FILES} />
-                <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                <span className="text-gray-400 mt-2 block">Kéo và thả hoặc nhấp để chọn tệp</span>
-                <p className="text-xs text-gray-500 mt-1">Tối đa {MAX_FILES} ảnh</p>
+              <label htmlFor="apiKey" className="block text-sm font-medium mb-2 text-gray-300">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 inline-block mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M15,12a1,1,0,0,0-1-1H10a1,1,0,0,0,0,2h4A1,1,0,0,0,15,12Zm-1-4H10a3,3,0,0,0-3,3v2a3,3,0,0,0,3,3h4a3,3,0,0,0,3-3V11A3,3,0,0,0,14,8Zm5,2.18V11a5,5,0,0,1-5,5H10a5,5,0,0,1-5-5V11A5,5,0,0,1,10,6h4a5,5,0,0,1,2.83,1H19a1,1,0,0,1,0,2Z"/></svg>
+                Gemini API Key
               </label>
-              {uploadedFiles.length > 0 && (
-                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {uploadedFiles.map((uf, index) => (
-                    <div key={index} className="relative group aspect-square">
-                      <img src={uf.preview} alt={`Preview ${index + 1}`} className="w-full h-full object-cover rounded-md" />
-                      <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-md">
-                        <button onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold z-10">&times;</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <div>
-                <h2 className="text-lg font-semibold mb-3 border-l-4 border-blue-400 pl-3 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 16v-2m0-10v2m0 6v2M6 12H4m16 0h-2m-10 0h2m6 0h2M9 17l-2 2M15 7l2-2m-2 2l2 2m-2-2l-2-2m2 2l-2 2" /></svg>
-                    2. Chế độ
-                </h2>
-                <div className="space-y-2">
-                    {Object.entries(modeOptions).map(([key, value]) => (
-                        <ModeButton key={key} mode={key as EditMode} currentMode={editMode} setMode={(m) => setEditMode(m)}>
-                            {modeIcons[key as EditMode]}
-                            <span>{value}</span>
-                        </ModeButton>
-                    ))}
-                </div>
-                 {editMode === EditMode.COUPLE_PHOTO && (
-                    <p className="text-xs text-yellow-300 bg-yellow-900/40 p-2 rounded-md text-center mt-3">
-                        Chế độ này yêu cầu tải lên chính xác 2 ảnh để kết hợp.
-                    </p>
-                )}
+              <div className="flex items-center gap-2">
+                  <input
+                  id="apiKey"
+                  type="password"
+                  value={apiKey}
+                  onChange={handleApiKeyChange}
+                  placeholder="Nhập API Key của bạn tại đây"
+                  className="flex-grow bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <button 
+                      onClick={handleCheckApiKey}
+                      disabled={apiKeyStatus === 'checking'}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-wait"
+                  >
+                      Kiểm tra
+                  </button>
+              </div>
+              <div className="mt-2 h-5 flex items-center gap-1.5 text-sm">
+                  {apiKeyStatus === 'checking' && (
+                  <>
+                      <svg className="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      <span className="text-gray-400">Đang kiểm tra...</span>
+                  </>
+                  )}
+                  {apiKeyStatus === 'valid' && (
+                  <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-green-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm5.71,7.29-6,6a1,1,0,0,1-1.42,0l-3-3a1,1,0,0,1,1.42-1.42L11,13.59l5.29-5.3a1,1,0,0,1,1.42,1.42Z"/></svg>
+                      <span className="text-green-400 font-medium">API Key hợp lệ!</span>
+                  </>
+                  )}
+                  {apiKeyStatus === 'invalid' && (
+                  <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm3.71,12.29a1,1,0,0,1,0,1.42,1,1,0,0,1-1.42,0L12,13.41l-2.29,2.3a1,1,0,0,1-1.42,0,1,1,0,0,1,0-1.42L10.59,12,8.29,9.71A1,1,0,0,1,9.71,8.29L12,10.59l2.29-2.3a1,1,0,1,1,1.42,1.42L13.41,12Z"/></svg>
+                      <span className="text-red-400 font-medium">API Key không hợp lệ.</span>
+                  </>
+                  )}
+              </div>
             </div>
 
-             {editMode === EditMode.CUSTOM && (
-                <div>
-                    <label htmlFor="custom-prompt" className="block text-base font-medium text-gray-300 mb-2">
-                        Lời nhắc tùy chỉnh
-                    </label>
-                    <textarea
-                        id="custom-prompt"
-                        value={customPrompt}
-                        onChange={(e) => setCustomPrompt(e.target.value)}
-                        placeholder="Ví dụ: biến ảnh này thành tranh sơn dầu theo phong cách Van Gogh..."
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                        rows={4}
-                    />
-                </div>
+            <div>
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm5,13H7a1,1,0,0,1,0-2h10a1,1,0,0,1,0,2Zm0-4H7a1,1,0,0,1,0-2h10a1,1,0,0,1,0,2Zm0-4H7A1,1,0,0,1,7,7h10a1,1,0,0,1,0,2Z"/></svg>
+                  Chế độ
+              </h2>
+              <div className="space-y-2">
+                <ModeButton mode={EditMode.RESTORE} currentMode={editMode} setMode={setEditMode}>Phục hồi & Tô màu</ModeButton>
+                <ModeButton mode={EditMode.SHARPEN} currentMode={editMode} setMode={setEditMode}>Làm nét ảnh</ModeButton>
+                <ModeButton mode={EditMode.ID_PHOTO} currentMode={editMode} setMode={setEditMode}>Ảnh thẻ 3x4</ModeButton>
+                <ModeButton mode={EditMode.REMOVE_BACKGROUND} currentMode={editMode} setMode={setEditMode}>Xóa nền</ModeButton>
+                <ModeButton mode={EditMode.COUPLE_PHOTO} currentMode={editMode} setMode={setEditMode}>Chụp ảnh chung</ModeButton>
+                <ModeButton mode={EditMode.CUSTOM} currentMode={editMode} setMode={setEditMode}>Tùy chỉnh</ModeButton>
+              </div>
+            </div>
+
+            {editMode === EditMode.CUSTOM && (
+              <textarea
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="Ví dụ: Thêm một chiếc mũ cao bồi cho người trong ảnh..."
+                className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm h-24 resize-none focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
             )}
 
             <div>
-                <h2 className="text-lg font-semibold mb-3 border-l-4 border-blue-400 pl-3 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.293 2.293c.63.63 1.707.63 2.337 0l2.293-2.293m-4.63 16l2.293-2.293c.63-.63 1.707-.63 2.337 0l2.293 2.293M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                    3. Chất lượng đầu ra
-                </h2>
-                <div className="flex space-x-2">
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M21.71,8.71,15.29,2.29a1,1,0,0,0-1.42,0L3.29,12.87a3,3,0,0,0-.87,2.12V19a3,3,0,0,0,3,3H19a1,1,0,0,0,0-2H5.41A1,1,0,0,1,5,19V15a1,1,0,0,1,.29-.71l9.58-9.58,4.29,4.29L13,15.17a1,1,0,0,0,0,1.42,1,1,0,0,0,1.41,0L21.71,10.13A1,1,0,0,0,21.71,8.71Z"/></svg>
+                  Chất lượng
+                </h3>
+                <div className="flex gap-2">
+                    <QualityButton quality="Standard" currentQuality={outputQuality} setQuality={setOutputQuality}>Tiêu chuẩn</QualityButton>
                     <QualityButton quality="HD" currentQuality={outputQuality} setQuality={setOutputQuality}>HD</QualityButton>
-                    <QualityButton quality="2K" currentQuality={outputQuality} setQuality={setOutputQuality}>2K</QualityButton>
-                    <QualityButton quality="4K" currentQuality={outputQuality} setQuality={setOutputQuality}>4K</QualityButton>
+                    <QualityButton quality="Ultra-HD (4K)" currentQuality={outputQuality} setQuality={setOutputQuality}>4K</QualityButton>
                 </div>
             </div>
-            
-            <button 
-              onClick={handleEdit} 
-              disabled={isLoading || uploadedFiles.length === 0 || (editMode === EditMode.CUSTOM && !customPrompt.trim())}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg flex items-center justify-center gap-2"
+
+            <button
+              onClick={handleEdit}
+              disabled={isLoading || uploadedFiles.length === 0 || !apiKey}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
-              {isLoading ? 'Đang xử lý...' : '✨ Áp dụng & Tạo 2 ảnh'}
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  Đang xử lý...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12.29,8.29,15,5.59V13a1,1,0,0,0,2,0V5.59l2.71,2.7a1,1,0,0,0,1.41-1.41l-4.29-4.3a1,1,0,0,0-1.41,0l-4.29,4.3A1,1,0,1,0,12.29,8.29ZM21,12a1,1,0,0,0-1,1v6a1,1,0,0,1-1,1H5a1,1,0,0,1-1-1V13a1,1,0,0,0-2,0v6a3,3,0,0,0,3,3H19a3,3,0,0,0,3-3V13A1,1,0,0,0,21,12Z"/></svg>
+                  Áp dụng
+                </>
+              )}
             </button>
-             {error && <div className="text-red-400 bg-red-900/50 p-3 rounded-lg text-center">{error}</div>}
+          </aside>
 
-          </div>
+          {/* Image Display Area */}
+          <section className="flex-grow bg-gray-800 rounded-xl p-4 flex flex-col items-center justify-center">
+            {error && <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded-lg mb-4 w-full text-center">{error}</div>}
+            
+            <div className="flex flex-col gap-4 w-full h-full">
+               {/* Upload Area */}
+              <div className="relative border-2 border-dashed border-gray-600 rounded-lg p-6 text-center flex-grow flex flex-col items-center justify-center hover:border-blue-500 transition-colors">
+                  <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      disabled={uploadedFiles.length >= MAX_FILES}
+                  />
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-gray-500 mb-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/><path d="M12,6a6,6,0,1,0,6,6A6,6,0,0,0,12,6Zm0,10a4,4,0,1,1,4-4A4,4,0,0,1,12,16Z"/></svg>
+                  <p className="text-gray-400">Kéo và thả ảnh vào đây, hoặc nhấn để chọn</p>
+                  <p className="text-xs text-gray-500 mt-1">Tối đa {MAX_FILES} ảnh</p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                  {uploadedFiles.map((uf, index) => (
+                      <div key={index} className="relative group">
+                      <img src={uf.preview} alt={`preview ${index}`} className="w-full h-24 object-cover rounded-md" />
+                      <button onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M13.41,12l4.3-4.29a1,1,0,1,0-1.42-1.42L12,10.59,7.71,6.29A1,1,0,0,0,6.29,7.71L10.59,12l-4.3,4.29a1,1,0,0,0,0,1.42,1,1,0,0,0,1.42,0L12,13.41l4.29,4.3a1,1,0,0,0,1.42,0,1,1,0,0,0,0-1.42Z"/></svg>
+                      </button>
+                      </div>
+                  ))}
+              </div>
+            </div>
+          </section>
+        </main>
 
-          <div className="bg-gray-800 p-6 rounded-xl">
-             <h2 className="text-lg font-semibold mb-4 text-center">Ảnh đã chỉnh sửa</h2>
-             <div className="relative aspect-square">
-                {isLoading && (
-                    <div className="absolute inset-0 bg-gray-800/80 flex flex-col items-center justify-center z-10 rounded-lg">
-                        <div className="w-16 h-16 border-4 border-dashed border-blue-400 rounded-full animate-spin"></div>
-                        <p className="mt-4 text-lg">AI đang sáng tạo...</p>
-                    </div>
-                )}
-                 <div className="grid grid-cols-2 gap-4 h-full">
-                    {Array.from({ length: 2 }).map((_, index) => (
-                        <div key={index} className="bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
-                            {editedImages[index] ? (
-                                <img src={`data:image/png;base64,${editedImages[index]}`} alt={`Edited ${index + 1}`} className="w-full h-full object-contain" />
-                            ) : (
-                                <div className="flex flex-col items-center justify-center text-gray-500">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                  </svg>
-                                  <span className="text-sm mt-2">Kết quả {index + 1}</span>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-             </div>
-          </div>
-        </div>
+        {/* Result Section */}
+         <section className="bg-gray-800 rounded-xl p-4 m-4 flex flex-col items-center justify-center">
+            {renderResults()}
+        </section>
 
-        <footer className="text-center text-gray-500 text-sm mt-8 pb-4">
-          <p>
-            TÁC GIẢ: <a href="https://www.facebook.com/dunganh.vu2709/" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Vũ Dũng Anh</a>
-          </p>
+        <footer className="text-center py-4 text-sm text-gray-500 border-t border-gray-800">
+          <p>tác giả: <a href="https://www.facebook.com/profile.php?id=100022471674400" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Vũ Dũng Anh</a></p>
         </footer>
       </div>
-    </div>
+    </>
   );
 }
 
