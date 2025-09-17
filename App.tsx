@@ -41,6 +41,11 @@ const ApiKeyGuideModal = ({ onClose }: { onClose: () => void }) => (
                     <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">5</div>
                     <p>Quay lại trang này và dán API Key vừa sao chép vào ô "Gemini API Key".</p>
                 </div>
+                <div className="!mt-6 pt-4 border-t border-gray-700">
+                    <p className="text-sm text-yellow-300/90">
+                        <strong className="font-bold text-yellow-300">Lưu ý quan trọng:</strong> Vì bạn đang sử dụng API Key miễn phí, sẽ có giới hạn về số lượng ảnh bạn có thể tạo mỗi ngày. Nếu bạn có nhu cầu sử dụng nhiều hơn, vui lòng liên hệ tác giả qua Facebook để được hướng dẫn sử dụng phiên bản mã nguồn mở trên Google AI Studio.
+                    </p>
+                </div>
             </div>
              <div className="p-6 bg-gray-900/50 rounded-b-xl flex justify-end">
                 <button
@@ -263,7 +268,7 @@ function App() {
 
     // Xử lý cho các chế độ khác
     return (
-        <div className="space-y-6 w-full max-h-[70vh] overflow-y-auto pr-2">
+        <div className="space-y-6 w-full h-full overflow-y-auto pr-2">
             {uploadedFiles.map((uf, index) => (
                 <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-gray-700 pb-4 last:border-b-0">
                     <div>
@@ -401,43 +406,45 @@ function App() {
             </button>
           </aside>
 
-          {/* Image Display Area */}
-          <section className="flex-grow bg-gray-800 rounded-xl p-4 flex flex-col items-center justify-center">
-            {error && <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded-lg mb-4 w-full text-center" dangerouslySetInnerHTML={{ __html: error }} />}
+          {/* Main Content Area: Upload + Results */}
+          <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Image Upload Area */}
+            <section className="bg-gray-800 rounded-xl p-4 flex flex-col items-center justify-center">
+              {error && <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded-lg mb-4 w-full text-center" dangerouslySetInnerHTML={{ __html: error }} />}
+              
+              <div className="flex flex-col gap-4 w-full h-full">
+                <div className="relative border-2 border-dashed border-gray-600 rounded-lg p-6 text-center flex-grow flex flex-col items-center justify-center hover:border-blue-500 transition-colors">
+                    <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        disabled={uploadedFiles.length >= MAX_FILES}
+                    />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-gray-500 mb-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/><path d="M12,6a6,6,0,1,0,6,6A6,6,0,0,0,12,6Zm0,10a4,4,0,1,1,4-4A4,4,0,0,1,12,16Z"/></svg>
+                    <p className="text-gray-400">Kéo và thả ảnh vào đây, hoặc nhấn để chọn</p>
+                    <p className="text-xs text-gray-500 mt-1">Tối đa {MAX_FILES} ảnh</p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {uploadedFiles.map((uf, index) => (
+                        <div key={index} className="relative group">
+                        <img src={uf.preview} alt={`preview ${index}`} className="w-full h-24 object-cover rounded-md" />
+                        <button onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M13.41,12l4.3-4.29a1,1,0,1,0-1.42-1.42L12,10.59,7.71,6.29A1,1,0,0,0,6.29,7.71L10.59,12l-4.3,4.29a1,1,0,0,0,0,1.42,1,1,0,0,0,1.42,0L12,13.41l4.29,4.3a1,1,0,0,0,1.42,0,1,1,0,0,0,0-1.42Z"/></svg>
+                        </button>
+                        </div>
+                    ))}
+                </div>
+              </div>
+            </section>
             
-            <div className="flex flex-col gap-4 w-full h-full">
-               {/* Upload Area */}
-              <div className="relative border-2 border-dashed border-gray-600 rounded-lg p-6 text-center flex-grow flex flex-col items-center justify-center hover:border-blue-500 transition-colors">
-                  <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      disabled={uploadedFiles.length >= MAX_FILES}
-                  />
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-gray-500 mb-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/><path d="M12,6a6,6,0,1,0,6,6A6,6,0,0,0,12,6Zm0,10a4,4,0,1,1,4-4A4,4,0,0,1,12,16Z"/></svg>
-                  <p className="text-gray-400">Kéo và thả ảnh vào đây, hoặc nhấn để chọn</p>
-                  <p className="text-xs text-gray-500 mt-1">Tối đa {MAX_FILES} ảnh</p>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {uploadedFiles.map((uf, index) => (
-                      <div key={index} className="relative group">
-                      <img src={uf.preview} alt={`preview ${index}`} className="w-full h-24 object-cover rounded-md" />
-                      <button onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M13.41,12l4.3-4.29a1,1,0,1,0-1.42-1.42L12,10.59,7.71,6.29A1,1,0,0,0,6.29,7.71L10.59,12l-4.3,4.29a1,1,0,0,0,0,1.42,1,1,0,0,0,1.42,0L12,13.41l4.29,4.3a1,1,0,0,0,1.42,0,1,1,0,0,0,0-1.42Z"/></svg>
-                      </button>
-                      </div>
-                  ))}
-              </div>
-            </div>
-          </section>
+            {/* Result Section */}
+            <section className="bg-gray-800 rounded-xl p-4 flex flex-col items-center justify-center overflow-hidden">
+                {renderResults()}
+            </section>
+          </div>
         </main>
-
-        {/* Result Section */}
-         <section className="bg-gray-800 rounded-xl p-4 m-4 flex flex-col items-center justify-center">
-            {renderResults()}
-        </section>
 
         <footer className="text-center py-4 text-sm text-gray-500 border-t border-gray-800">
           <p>tác giả: <a href="https://www.facebook.com/profile.php?id=100022471674400" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Vũ Dũng Anh</a></p>
