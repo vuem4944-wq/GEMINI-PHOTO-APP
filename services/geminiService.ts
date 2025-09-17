@@ -125,9 +125,29 @@ export const editImage = async (
                 throw new Error(`API Key không hợp lệ. Vui lòng kiểm tra lại.`);
             }
 
-            // Handle Quota Exceeded (429) error
+            // Enhanced Quota Exceeded (429) error handling
             if (e.message.includes('"code":429') || e.message.includes('RESOURCE_EXHAUSTED')) {
-                throw new Error(`Bạn đã vượt quá hạn ngạch sử dụng miễn phí. Gói miễn phí có giới hạn, vui lòng đợi và thử lại sau hoặc nâng cấp gói cước trên Google AI Studio.`);
+                let customMessage = `Bạn đã vượt quá hạn ngạch sử dụng miễn phí. Gói miễn phí có giới hạn, vui lòng đợi và thử lại sau hoặc nâng cấp gói cước trên Google AI Studio.`;
+                try {
+                    const jsonStart = e.message.indexOf('{');
+                    if (jsonStart !== -1) {
+                        const errorObj = JSON.parse(e.message.substring(jsonStart));
+                        const retryInfo = errorObj?.error?.details?.find(d => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo');
+                        
+                        if (retryInfo && retryInfo.retryDelay) {
+                            const seconds = parseInt(retryInfo.retryDelay.replace('s', ''), 10);
+                            customMessage = `Bạn đã đạt đến giới hạn yêu cầu. Vui lòng đợi khoảng <strong>${seconds} giây</strong> và thử lại.`;
+                        } else {
+                            const helpLink = errorObj?.error?.details?.find(d => d['@type'] === 'type.googleapis.com/google.rpc.Help')?.links?.[0]?.url;
+                            if (helpLink) {
+                                customMessage = `Bạn đã vượt quá hạn ngạch sử dụng miễn phí. <a href="${helpLink}" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Tìm hiểu thêm về giới hạn</a> hoặc nâng cấp gói cước để tiếp tục.`;
+                            }
+                        }
+                    }
+                } catch (parseError) {
+                    // Parsing failed, use the generic message.
+                }
+                throw new Error(customMessage);
             }
             
             // Try to parse other JSON errors for a cleaner message

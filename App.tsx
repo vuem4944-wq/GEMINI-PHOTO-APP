@@ -403,7 +403,7 @@ function App() {
 
           {/* Image Display Area */}
           <section className="flex-grow bg-gray-800 rounded-xl p-4 flex flex-col items-center justify-center">
-            {error && <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded-lg mb-4 w-full text-center">{error}</div>}
+            {error && <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded-lg mb-4 w-full text-center" dangerouslySetInnerHTML={{ __html: error }} />}
             
             <div className="flex flex-col gap-4 w-full h-full">
                {/* Upload Area */}
