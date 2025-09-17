@@ -120,9 +120,31 @@ export const editImage = async (
     } catch(e) {
         console.error("Lỗi khi chỉnh sửa ảnh bằng Gemini API:", e);
         if (e instanceof Error) {
+            // Handle invalid API key
             if (e.message.includes('API key not valid')) {
-                 throw new Error(`API Key không hợp lệ. Vui lòng kiểm tra lại.`);
+                throw new Error(`API Key không hợp lệ. Vui lòng kiểm tra lại.`);
             }
+
+            // Handle Quota Exceeded (429) error
+            if (e.message.includes('"code":429') || e.message.includes('RESOURCE_EXHAUSTED')) {
+                throw new Error(`Bạn đã vượt quá hạn ngạch sử dụng miễn phí. Gói miễn phí có giới hạn, vui lòng đợi và thử lại sau hoặc nâng cấp gói cước trên Google AI Studio.`);
+            }
+            
+            // Try to parse other JSON errors for a cleaner message
+            try {
+                const jsonStart = e.message.indexOf('{');
+                if (jsonStart !== -1) {
+                    const errorObj = JSON.parse(e.message.substring(jsonStart));
+                    if (errorObj.error && errorObj.error.message) {
+                        // Return just the core message from the API
+                        throw new Error(`Lỗi từ API: ${errorObj.error.message}`);
+                    }
+                }
+            } catch (parseError) {
+                // Fallback if parsing fails, will use the original message below
+            }
+
+            // Fallback for any other type of error, keeping the original message for debugging
             throw new Error(`Lỗi API Gemini: ${e.message}`);
         }
         throw new Error("Đã xảy ra lỗi không xác định khi chỉnh sửa ảnh.");
