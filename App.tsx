@@ -79,20 +79,31 @@ function App() {
         setError('Vui lòng nhập lời nhắc cho chế độ tùy chỉnh.');
         return;
     }
+     if (editMode === EditMode.COUPLE_PHOTO && uploadedFiles.length !== 2) {
+      setError('Vui lòng tải lên chính xác 2 ảnh cho chế độ "Chụp ảnh chung".');
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
     setEditedImages([]);
 
     try {
-      const sourceFile = uploadedFiles[0];
-      const base64String = await fileToBase64(sourceFile.file);
+      const filesToProcess = editMode === EditMode.COUPLE_PHOTO
+        ? uploadedFiles
+        : [uploadedFiles[0]];
+
+      const base64Strings = await Promise.all(
+          filesToProcess.map(uf => fileToBase64(uf.file))
+      );
+      const mimeTypes = filesToProcess.map(uf => uf.file.type);
+
 
       // Create 4 parallel requests to generate 4 images at once
       const editPromises = Array(4).fill(0).map(() => 
         editImage(
-            base64String, 
-            sourceFile.file.type, 
+            base64Strings,
+            mimeTypes,
             editMode, 
             outputQuality, 
             customPrompt
@@ -161,6 +172,11 @@ function App() {
                         </ModeButton>
                     ))}
                 </div>
+                 {editMode === EditMode.COUPLE_PHOTO && (
+                    <p className="text-xs text-yellow-300 bg-yellow-900/40 p-2 rounded-md text-center mt-3">
+                        Chế độ này yêu cầu tải lên chính xác 2 ảnh để kết hợp.
+                    </p>
+                )}
             </div>
 
              {editMode === EditMode.CUSTOM && (
