@@ -1,11 +1,6 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import { EditMode } from '../types';
 
-// WARNING: Hardcoding API keys in client-side code is a security risk.
-// Anyone can view this key and use it, potentially incurring costs on your account.
-// This is done as per user request.
-const API_KEY = 'AIzaSyD8jA6OfSLkJV0VAqFIQ7Bam28zgBUhI2s';
-
 const getPromptForMode = (mode: EditMode, quality: string, customPrompt?: string): string => {
     const qualityPrompt = `The output quality should be ${quality}.`;
     let basePrompt = '';
@@ -45,11 +40,8 @@ export const editImage = async (
     quality: string,
     customPrompt?: string,
 ): Promise<string> => {
-    if (!API_KEY) {
-        throw new Error("API Key của Gemini không được cấu hình.");
-    }
     try {
-        const ai = new GoogleGenAI({ apiKey: API_KEY });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const prompt = getPromptForMode(mode, quality, customPrompt);
 
         const imageParts = base64ImageDatas.map((data, index) => ({
